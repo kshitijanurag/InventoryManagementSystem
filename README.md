@@ -15,7 +15,9 @@ pip install flet
 pip install pymongo
 pip install pandas
 pip install numpy
-pip install matplotlib seabon scikit-learn
+pip install matplotlib
+pip install seaborn
+pip install scikit-learn
 pip install xgboost prophet
 ```
 
