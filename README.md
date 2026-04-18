@@ -19,6 +19,7 @@ pip install matplotlib
 pip install seaborn
 pip install scikit-learn
 pip install xgboost prophet
+pip install reportlab
 ```
 
 ## Running the App
@@ -35,10 +36,11 @@ first open mongodb compass and create a database in mongodb compass
 - customers
 - employees
 - invoices 
-- products 
+- products
+- products_return
 - purchase_orders
 - sales
 - suppliers
 
 after creating database and collection go to each collection and click on import json/csv and select ''inventory database'' folder/directory
-and import as it is, do it for each collection.
+and import as it is, do it for each collection. (No need to inport data for products_return) 
