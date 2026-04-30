@@ -40,6 +40,14 @@ def build_suppliers_page(flet_page: ft.Page):
     f_reliability = ft.TextField(label="Reliability Score (1-10)", **fs, keyboard_type=ft.KeyboardType.NUMBER)
 
     error_text = ft.Text("", color="red", size=12)
+    search_supplier = ft.TextField(
+        label="Search Supplier (Name / Contact / Email)",
+        width=400,
+        color=TEXT_PRIMARY,
+        bgcolor=SURFACE_DARK,
+        border_color=BORDER_DEFAULT,
+        focused_border_color=ACCENT_PRIMARY,
+    )
     table_column = ft.Column([])
 
     # ── BUILD SUPPLIER ROWS ───────────────────────────────
@@ -76,6 +84,45 @@ def build_suppliers_page(flet_page: ft.Page):
                 table_rows=build_supplier_rows(sups),
             )
         )
+        flet_page.update()
+
+    def search_supplier_action(e):
+        keyword = search_supplier.value.strip()
+
+        if not keyword:
+            refresh_table()
+            return
+
+        query = {
+            "$or": [
+                {"_id": {"$regex": keyword, "$options": "i"}},
+                {"name": {"$regex": keyword, "$options": "i"}},
+                {"contact": {"$regex": keyword, "$options": "i"}},
+                {"email": {"$regex": keyword, "$options": "i"}},
+                {"supplier_id": {"$regex": keyword, "$options": "i"}},
+            ]
+        }
+
+        results = list(suppliers_col.find(query))
+
+        from ui.components import build_data_table
+
+        table_column.controls.clear()
+        table_column.controls.append(
+            build_data_table(
+                column_labels=[
+                    "ID",
+                    "Name",
+                    "Contact",
+                    "Email",
+                    "Lead Time",
+                    "Reliability",
+                    "Actions"
+                ],
+                table_rows=build_supplier_rows(results),
+            )
+        )
+
         flet_page.update()
 
     # ── FILL FIELDS ───────────────────────────────────────
@@ -151,14 +198,30 @@ def build_suppliers_page(flet_page: ft.Page):
     quantity_f    = ft.TextField(label="Delivered Qty", width=180, keyboard_type=ft.KeyboardType.NUMBER, **{k: v for k, v in fs.items() if k != "width"})
 
     status_dd = ft.Dropdown(
-        label="Update Status", width=220,
+        label="Update Status",
+        width=220,
         options=[
             ft.dropdown.Option("Delivered"),
             ft.dropdown.Option("Rejected"),
             ft.dropdown.Option("Not Available"),
         ],
-        color=TEXT_PRIMARY, bgcolor=SURFACE_DARK,
+        color="white",
+
+        label_style=ft.TextStyle(
+        ),
+        text_style=ft.TextStyle(
+            color="white",
+            size=14,
+            weight=ft.FontWeight.W_500
+        ),
+    )
+    search_po = ft.TextField(
+        label="Search PO (Product ID / Supplier ID)",
+        width=400,
+        color=TEXT_PRIMARY,
+        bgcolor=SURFACE_DARK,
         border_color=BORDER_DEFAULT,
+        focused_border_color=ACCENT_PRIMARY,
     )
 
     po_table = ft.DataTable(
@@ -196,56 +259,171 @@ def build_suppliers_page(flet_page: ft.Page):
                     ft.DataCell(ft.Text(po["product_id"], color=TEXT_SECONDARY, size=12)),
                     ft.DataCell(ft.Text(po["supplier_id"], color=TEXT_SECONDARY, size=12)),
                     ft.DataCell(ft.Text(str(po["quantity"]), color=TEXT_PRIMARY, size=12)),
-                    ft.DataCell(ft.Text(status, color=status_color, size=12, weight=ft.FontWeight.W_600)),
+                    ft.DataCell(ft.Text(status,color=TEXT_PRIMARY, size=12, weight=ft.FontWeight.W_600)),
                 ]
             ))
         flet_page.update()
 
+    def search_po_action(e):
+        keyword = search_po.value.strip()
+
+        if not keyword:
+            load_po_table()
+            return
+
+        po_table.rows.clear()
+
+        query = {
+            "$or": [
+                {"_id": {"$regex": keyword, "$options": "i"}},
+                {"product_id": {"$regex": keyword, "$options": "i"}},
+                {"supplier_id": {"$regex": keyword, "$options": "i"}},
+            ]
+        }
+
+        results = list(po_col.find(query))
+
+        for po in results:
+            def select_row(ev, data=po):
+                selected_po["value"] = data
+                po_id_f.value = str(data.get("_id", ""))
+                product_id_f.value = data.get("product_id", "")
+                supplier_id_f.value = data.get("supplier_id", "")
+                quantity_f.value = str(data.get("quantity", ""))
+                status_dd.value = None
+                flet_page.update()
+
+            status = po.get("status", "Pending")
+
+            po_table.rows.append(
+                ft.DataRow(
+                    cells=[
+                        ft.DataCell(
+                            ft.Text(str(po.get("_id", "")),color=TEXT_PRIMARY,),
+                            on_tap=select_row
+                        ),
+                        ft.DataCell(
+                            ft.Text(po.get("product_id", ""),color=TEXT_PRIMARY,)
+                        ),
+                        ft.DataCell(
+                            ft.Text(po.get("supplier_id", ""),color=TEXT_PRIMARY,)
+                        ),
+                        ft.DataCell(
+                            ft.Text(str(po.get("quantity", "")),color=TEXT_PRIMARY,)
+                        ),
+                        ft.DataCell(
+                            ft.Text(status,color=TEXT_PRIMARY,)
+                        ),
+                    ]
+                )
+            )
+
+        flet_page.update()
+
     def update_po(e):
         if not selected_po["value"]:
-            return
-        new_status = status_dd.value
-        if not new_status:
-            return
-        po = selected_po["value"]
-        try:
-            new_qty = int(quantity_f.value)
-        except:
-            return
-        if new_qty < 0:
+            error_text.value = "⚠ Please select a PO first."
+            flet_page.update()
             return
 
+        new_status = status_dd.value
+
+        if not new_status:
+            error_text.value = "⚠ Please select status."
+            flet_page.update()
+            return
+
+        po = selected_po["value"]
+
+        try:
+            new_qty = int(quantity_f.value.strip())
+        except:
+            error_text.value = "⚠ Invalid quantity."
+            flet_page.update()
+            return
+
+        if new_qty <= 0:
+            error_text.value = "⚠ Quantity must be greater than 0."
+            flet_page.update()
+            return
+
+        po_id = str(po["_id"]).strip()
+        product_id = str(po["product_id"]).strip()
+        supplier_id = str(po["supplier_id"]).strip()
+
+        # Get latest PO from DB
+        old_po = po_col.find_one({"_id": po_id})
+
+        if not old_po:
+            error_text.value = "❌ PO not found."
+            flet_page.update()
+            return
+
+        old_qty = int(old_po.get("quantity", 0))
+        old_status = old_po.get("status", "Pending")
+
+        # STEP 1 → Update Purchase Order
         po_col.update_one(
-            {"_id": po["_id"]},
-            {"$set": {
-                "quantity": new_qty,
-                "status": new_status,
-                "delay_flag": False if new_status == "Delivered" else True
-            }}
+            {"_id": po_id},
+            {
+                "$set": {
+                    "quantity": new_qty,
+                    "status": new_status,
+                    "delay_flag": False if new_status == "Delivered" else True,
+                    "updated_at": datetime.utcnow()
+                }
+            }
         )
 
+        # STEP 2 → Update Product Stock ONLY if Delivered
         if new_status == "Delivered":
-            product = products_col.find_one({"product_id": po["product_id"]}).limit(10)
-            if product:
-                try:
-                    current = int(product.get("current_stock", 0))
-                except:
-                    current = 0
-                products_col.update_one(
-                    {"product_id": po["product_id"]},
-                    {"$set": {
-                        "current_stock": current + new_qty,
-                        "updated_at": datetime.utcnow()
-                    }}
-                )
 
+            product = products_col.find_one({
+                "product_id": product_id
+            })
+
+            if not product:
+                error_text.value = f"❌ Product not found: {product_id}"
+                flet_page.update()
+                return
+
+            old_stock = int(product.get("current_stock", 0))
+
+            # only difference should be added
+            qty_difference = new_qty - old_qty
+
+            # if status was not delivered before, add full qty
+            if old_status != "Delivered":
+                qty_difference = new_qty
+
+            new_stock = old_stock + qty_difference
+
+            products_col.update_one(
+                {"product_id": product_id},
+                {
+                    "$set": {
+                        "current_stock": new_stock,
+                        "supplier_id": supplier_id,
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+
+            error_text.value = f"✅ Product Stock Updated: {old_stock} → {new_stock}"
+
+        else:
+            error_text.value = "✅ PO Updated Successfully"
+
+        # Clear Fields
         selected_po["value"] = None
         po_id_f.value = ""
         product_id_f.value = ""
         supplier_id_f.value = ""
         quantity_f.value = ""
         status_dd.value = None
+
         load_po_table()
+        flet_page.update()
 
     # ── INITIAL LOAD ──────────────────────────────────────
     refresh_table()
@@ -294,7 +472,24 @@ def build_suppliers_page(flet_page: ft.Page):
 
             # Suppliers Table
             build_card(ft.Column([
-                ft.Text("All Suppliers", size=15, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                ft.Row([
+                    ft.Text(
+                        "All Suppliers",
+                        size=15,
+                        weight=ft.FontWeight.W_600,
+                        color=TEXT_PRIMARY
+                    ),
+                    search_supplier,
+                    ft.ElevatedButton(
+                        "Search",
+                        icon=ft.Icons.SEARCH,
+                        on_click=search_supplier_action
+                    ),
+                    ft.TextButton(
+                        "Reset",
+                        on_click=lambda e: refresh_table()
+                    )
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ft.Container(height=12),
                 table_column,
             ])),
@@ -303,12 +498,23 @@ def build_suppliers_page(flet_page: ft.Page):
 
             # Supplier Approval
             build_card(ft.Column([
-                ft.Text("Supplier Order Approval", size=15, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                ft.Row([
+                    search_po,
+                    ft.ElevatedButton(
+                        "Search PO",
+                        icon=ft.Icons.SEARCH,
+                        on_click=search_po_action
+                    ),
+                    ft.TextButton(
+                        "Reset",
+                        on_click=lambda e: load_po_table()
+                    )
+                ]),
                 ft.Container(height=12),
                 ft.Row([po_id_f, product_id_f, supplier_id_f], spacing=12),
                 ft.Row([quantity_f, status_dd], spacing=12),
                 ft.Container(height=8),
-                ft.ElevatedButton("Update Order", bgcolor=ACCENT_PRIMARY, color="white", on_click=update_po),
+                ft.ElevatedButton("Update Order", color="white", on_click=update_po),
                 ft.Container(height=12),
                 po_table,
             ])),

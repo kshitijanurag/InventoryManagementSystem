@@ -93,10 +93,10 @@ def build_reorder_page(flet_page: ft.Page):
         for po in auto_po_col.find().sort("created_at", -1).limit(50):
             rows.append(
                 ft.DataRow(cells=[
-                    ft.DataCell(ft.Text(po.get("po_id", ""))),
-                    ft.DataCell(ft.Text(po.get("product", ""))),
-                    ft.DataCell(ft.Text(str(po.get("predicted_qty", "")))),
-                    ft.DataCell(ft.Text(str(po.get("created_at", ""))[:19])),
+                    ft.DataCell(ft.Text(po.get("po_id", ""),color="white")),
+                    ft.DataCell(ft.Text(po.get("product", ""),color="white")),
+                    ft.DataCell(ft.Text(str(po.get("predicted_qty", "")),color="white")),
+                    ft.DataCell(ft.Text(str(po.get("created_at", ""))[:19],color="white")),
                 ])
             )
 
